@@ -8,7 +8,7 @@ from tqdm import tqdm
 import logging
 
 
-n_episodes = 1000
+n_episodes = 500
 
 training_period = 250
 
@@ -29,8 +29,8 @@ agent = LunarLanderAgent(
     env = env,
     n_obs = 8, 
     n_actions = 4, 
-    buffer_size = 1024,
-    mini_batch_size = 32,
+    buffer_size = 8192,
+    mini_batch_size = 128,
     smoothing_factor= 0.005,
     eps_initial = 1,
     eps_decay = 0.99,

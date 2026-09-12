@@ -24,7 +24,7 @@ class LunarLanderAgent:
             eps_decay,
             eps_final,
             discount = 0.95,
-            learning_rate = 0.1
+            learning_rate = 0.001
             ) -> None:
 
         self.env = env
@@ -41,7 +41,7 @@ class LunarLanderAgent:
 
         self.mini_batch_size = mini_batch_size
 
-        self.smoothing_scalar = smoothing_factor
+        self.smoothing_factor = smoothing_factor
 
         self.epsilon = eps_initial
         self.eps_decay = eps_decay
@@ -98,7 +98,7 @@ class LunarLanderAgent:
 
         # el Gemini ha ajudat aquí també :)
         for target_param, critic_param in zip(self.target.parameters(), self.critic.parameters()):
-            target_param.data.copy_(self.smoothing_scalar * critic_param.data + (1.0 - self.smoothing_scalar) * target_param.data)
+            target_param.data.copy_(self.smoothing_factor * critic_param.data + (1.0 - self.smoothing_factor) * target_param.data)
 
     def decay_epsilon(self):
         self.epsilon = max(self.eps_final, self.epsilon*self.eps_decay)
