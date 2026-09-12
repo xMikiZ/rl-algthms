@@ -100,8 +100,6 @@ class LunarLanderAgent:
         for target_param, critic_param in zip(self.target.parameters(), self.critic.parameters()):
             target_param.data.copy_(self.smoothing_scalar * critic_param.data + (1.0 - self.smoothing_scalar) * target_param.data)
 
-
-
     def decay_epsilon(self):
-        self.epsilon = max(self.eps_final, self.epsilon - self.eps_decay)
+        self.epsilon = max(self.eps_final, self.epsilon*self.eps_decay)
 

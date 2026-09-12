@@ -8,7 +8,7 @@ from tqdm import tqdm
 import logging
 
 
-n_episodes = 100000
+n_episodes = 1000
 
 training_period = 250
 
@@ -32,9 +32,9 @@ agent = LunarLanderAgent(
     buffer_size = 1024,
     mini_batch_size = 32,
     smoothing_factor= 0.005,
-    eps_initial = 0.5,
-    eps_decay = 0.5 / (n_episodes / 2),
-    eps_final = 0.1,
+    eps_initial = 1,
+    eps_decay = 0.99,
+    eps_final = 0.025,
     discount = 0.95,
     learning_rate = 0.0001
 )
@@ -75,7 +75,7 @@ for episode in tqdm(range(n_episodes)):
                     f"time={episode_data['t']:.2f}s")
 
         # Additional analysis for milestone episodes
-        if episode % 1000 == 0:
+        if episode % 100 == 0:
             # Look at recent performance (last 100 episodes)
             recent_rewards = list(env.return_queue)[-100:]
             if recent_rewards:
