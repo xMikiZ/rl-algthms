@@ -35,7 +35,7 @@ agent = LunarLanderAgent(
     eps_initial = 1,
     eps_decay = 0.99,
     eps_final = 0.025,
-    discount = 0.95,
+    discount = 0.99,
     learning_rate = 0.0001
 )
 
