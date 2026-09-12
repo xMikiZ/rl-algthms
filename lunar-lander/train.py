@@ -65,6 +65,8 @@ for episode in tqdm(range(n_episodes)):
         episode_reward += reward
         step_count += 1
 
+    agent.decay_epsilon()
+
     if "episode" in info:
         episode_data = info["episode"]
         logging.info(f"Episode {episode}: "
