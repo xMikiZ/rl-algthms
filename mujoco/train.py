@@ -1,6 +1,7 @@
 import gymnasium as gym
 import torch
 from agent import AntAgent
+from tqdm import tqdm
 
 
 num_episodes = 10000
@@ -18,7 +19,7 @@ agent = AntAgent(
 )
 
 
-for episode in range(num_episodes):
+for episode in tqdm(range(num_episodes)):
 
     observation, info = env.reset()
     observation = torch.from_numpy(observation).to(torch.float32) # torch uses float32 as default, but this is float64
@@ -27,7 +28,7 @@ for episode in range(num_episodes):
 
     agent.restart_discount()
 
-    while not terminated or not truncated:
+    while not terminated and not truncated:
 
         action = agent.get_action(observation)
 
