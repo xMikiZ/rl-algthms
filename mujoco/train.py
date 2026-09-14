@@ -27,11 +27,11 @@ for episode in range(num_episodes):
 
     agent.restart_discount()
 
-    while not terminated or truncated:
+    while not terminated or not truncated:
 
         action = agent.get_action(observation)
 
-        new_observation, reward, terminated, truncated, info = env.step(action)
+        new_observation, reward, terminated, truncated, info = env.step(action.numpy())
         new_observation = torch.from_numpy(new_observation).to(torch.float32)
 
         agent.update_weights(observation, action, reward, new_observation)
