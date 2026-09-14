@@ -49,10 +49,11 @@ class AntAgent():
     def restart_discount(self):
         self.cumulative_discount = 1
 
-    def update_weights(self, observation, reward, action, next_observation):
+    def update_weights(self, observation, action, reward, next_observation):
 
         with torch.no_grad():
-            delta = reward[np.argmax(action)] + self.discount * self.critic(next_observation)
+            delta = reward + self.discount * self.critic(next_observation)
+            delta = delta.detach()
 
         # critic weights
         grad_critic = torch.autograd.grad(self.critic(observation), self.critic.parameters())
