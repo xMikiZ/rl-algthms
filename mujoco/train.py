@@ -27,7 +27,7 @@ for episode in range(num_episodes):
 
     agent.restart_discount()
 
-    while not terminated or truncated:
+    while not terminated and not truncated:
 
         action = agent.get_action(observation)
 
