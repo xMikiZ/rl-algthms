@@ -32,16 +32,13 @@ class AntAgent():
 
         self.discount = discount
 
+        self.actor_optimizer = torch.optim.SGD(self.actor.parameters(), lr_actor)
+        self.critic_optimizer = torch.optim.SGD(self.critic.parameters(), lr_critic)
+
     def get_action(self, observation):
-        """Returns action: arg and value"""
-        all_actions = self.actor(observation)
 
-        #TODO: replace greedy best_action to sampled_action 
-        best_action = torch.argmax(all_actions[:, 0])
-        res = np.zeros(self.num_actions)
-        res[best_action] = all_actions[best_action, 1] 
-
-        return res
+        dist = self.actor(observation)
+        return dist.sample()
 
     def update_discount(self):
         self.cumulative_discount *= self.discount
@@ -49,25 +46,28 @@ class AntAgent():
     def restart_discount(self):
         self.cumulative_discount = 1
 
-    def update_weights(self, observation, reward, action, next_observation):
+    def update_weights(self, observation, action, reward, next_observation):
 
-        with torch.no_grad():
-            delta = reward[np.argmax(action)] + self.discount * self.critic(next_observation)
+        delta = reward + self.discount * self.critic(next_observation)
+        delta = delta.detach()
 
-        # critic weights
-        grad_critic = torch.autograd.grad(self.critic(observation), self.critic.parameters())
+        # actor update
+        dist = self.actor(observation)
+        log_prob = dist.log_prob(action).sum(dim=-1)*self.cumulative_discount
 
-        # w <- w + alpha * delta * grad
-        with torch.no_grad():
-            for param, grad in zip(self.critic.parameters(), grad_critic):
-                param += self.lr_critic * delta * grad
+        actor_loss = -log_prob
 
-                # critic weights
-        eps = 1e-5
-        log_policy = torch.log(self.actor(observation)[np.argmax(action), 0] + eps)
-        grad_actor = torch.autograd.grad(log_policy, self.actor.parameters())
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
 
-        # 0 <- 0 + alpha * I * delta * grad
-        with torch.no_grad():
-            for param, grad in zip(self.actor.parameters(), grad_actor):
-                param += self.lr_actor * self.cumulative_discount * delta * grad
+        # critic update
+        critic_loss = -self.critic(observation)
+
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        self.critic_optimizer.step()
+
+
+
+        

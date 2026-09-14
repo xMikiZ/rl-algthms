@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.distributions import Normal
 
 
 
@@ -12,7 +13,7 @@ class Policy(nn.Module):
         self.n_input = n_input
         self.n_output = n_output 
 
-        self.mlp = nn.Sequential(
+        self.mu_mlp = nn.Sequential(
             nn.Linear(n_input, 1024),
             nn.ReLU(),
             nn.Linear(1024, 4096),
@@ -23,20 +24,20 @@ class Policy(nn.Module):
             nn.ReLU(),
             nn.Linear(4096, 2028),
             nn.ReLU(),
-            nn.Linear(2028, 2*n_output),
-        )
+            nn.Linear(2028, n_output),
+            nn.Tanh()
+        ) # Tanh pq action space entre -1 i 1
 
-        self.tanh = nn.Tanh()
-        self.softmax = nn.Softmax()
+        # recomanació gemini
+        self.log_std = nn.Parameter(torch.zeros(n_output)) # donat que estem en un cas on tot té igual rang i efecte, volem poca var, ho acceptem
 
-    def forward(self, observation):
-
-        fx = self.mlp(observation)
-        fx = fx.view((self.n_output, 2))
-        fx[:, 0] = self.softmax(fx[:, 0])
-        fx[:, 1] = self.tanh(fx[:, 1])
-
-        return fx
+    def forward(self, state: torch.Tensor) -> Normal:
+        mu = self.mu_mlp(state)
+        
+        log_std_clamped = torch.clamp(self.log_std, min=-20, max=2)
+        std = torch.exp(log_std_clamped)
+        
+        return Normal(mu, std)
 
 
 class ValueFunction(nn.Module):
