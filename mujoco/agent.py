@@ -49,20 +49,19 @@ class AntAgent():
 
         dist, v_s = self.a2c(observation)
 
-        delta = reward + self.discount * self.a2c(next_observation)[1]
+        delta = reward + self.discount * self.a2c(next_observation)[1] - v_s
         delta = delta.detach()
 
 
         # actor update
-        log_prob = dist.log_prob(action).sum(dim=-1)*self.cumulative_discount
-
-        actor_loss = -log_prob
+        log_prob = dist.log_prob(action).sum(dim=-1)
+        actor_loss = -self.cumulative_discount*delta*log_prob
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward(retain_graph=True)
 
         # critic update
-        critic_loss = -v_s
+        critic_loss = -delta*v_s
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
@@ -72,6 +71,8 @@ class AntAgent():
 
         self.actor_optimizer.step()
         self.critic_optimizer.step()
+
+                    
 
 
 
