@@ -14,11 +14,11 @@ class A2C(nn.Module):
 
         self.backbone = nn.Sequential(
             nn.Linear(n_input, 1024),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(1024, 1024),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(1024, 1024),
-            nn.ReLU()
+            nn.Tanh()
         )
 
         self.mu_head = nn.Sequential(
@@ -35,7 +35,7 @@ class A2C(nn.Module):
         shared = self.backbone(observation)
 
         mu = self.mu_head(shared)
-        log_std_clamped = torch.clamp(self.log_std, min=-20, max=2)
+        log_std_clamped = torch.clamp(self.log_std, min=-4.6, max=-1.4)
         std = torch.exp(log_std_clamped)
 
         v_value = self.v_head(shared)

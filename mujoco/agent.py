@@ -43,7 +43,7 @@ class AntAgent():
     def get_action(self, observation):
 
         dist, _ = self.a2c(observation)
-        return dist.sample()
+        return torch.clamp(dist.sample(), -1, 1)
 
     def update_discount(self):
         self.cumulative_discount *= self.discount
