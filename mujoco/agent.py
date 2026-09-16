@@ -77,14 +77,13 @@ class AntAgent():
             batch_critic_loss = torch.stack(self.critic_batch).mean()
 
             self.optimizer.zero_grad()
-            loss = batch_actor_loss + batch_critic_loss 
+            loss = batch_actor_loss + 0.5*batch_critic_loss 
             loss.backward()
 
             # recomanació del gemini: sinó s'acumulen masses gradients i torna nan
-            # torch.nn.utils.clip_grad_norm_(self.a2c.parameters(), max_norm=0.5)
+            torch.nn.utils.clip_grad_norm_(self.a2c.parameters(), max_norm=0.5)
 
             self.optimizer.step()
-            # self.critic_optimizer.step()
 
         self.update_batch_clock()
         

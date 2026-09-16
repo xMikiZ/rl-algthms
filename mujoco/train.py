@@ -1,5 +1,5 @@
 import gymnasium as gym
-from gymnasium.wrappers import RecordEpisodeStatistics
+from gymnasium.wrappers import RecordEpisodeStatistics, RecordVideo, NormalizeObservation
 
 import torch
 from agent import AntAgent
@@ -9,7 +9,15 @@ import logging
 num_episodes = 1000
 
 env = gym.make("Ant-v5", render_mode = "rgb_array")
+evn = NormalizeObservation(env)
+env = RecordVideo(
+    env,
+    video_folder="videos",
+    name_prefix="eval",
+    episode_trigger=lambda x: x % 50 == 0   # Record every 100 episodes
+)
 env = RecordEpisodeStatistics(env)
+
 
 
 
@@ -18,7 +26,7 @@ agent = AntAgent(
     num_actions = env.action_space.shape[0],
     env = env,
     lr = 0.0001,
-    discount = 0.9996,
+    discount = 0.99,
     batch_size = 128
 )
 
@@ -44,7 +52,7 @@ for episode in tqdm(range(num_episodes)):
 
         observation = new_observation
 
-        agent.update_discount()
+        # agent.update_discount()
 
     if "episode" in info:
         episode_data = info["episode"]
