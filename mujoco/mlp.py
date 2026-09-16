@@ -10,30 +10,35 @@ class A2C(nn.Module):
         super().__init__() 
 
         self.backbone = nn.Sequential(
-            nn.Linear(n_input, 1024),
+            nn.Linear(n_input, 512),
             nn.Tanh(),
-            nn.Linear(1024, 1024),
+            nn.Linear(512, 512),
             nn.Tanh(),
-        )
-
-        self.mu_head = nn.Sequential(
-            nn.Linear(1024, n_output),
+            nn.Linear(512, 512),
             nn.Tanh()
         )
 
-        self.log_std = nn.Parameter(torch.zeros(n_output)) # donat que estem en un cas on tot té igual rang i efecte, volem poca var, ho acceptem
+        self.mu_head = nn.Sequential(
+            nn.Linear(512, n_output),
+            nn.Tanh()
+        )
 
-        self.v_head = nn.Linear(1024, 1)
+        self.log_std_head = nn.Linear(512, n_output)
+
+        # self.log_std = nn.Parameter(torch.zeros(n_output)) # donat que estem en un cas on tot té igual rang i efecte, volem poca var, ho acceptem
+
+        self.v_head = nn.Linear(512, 1)
 
     def forward(self, observation):
 
         shared = self.backbone(observation)
         
         mu = self.mu_head(shared)
-        log_std_clamped = torch.clamp(self.log_std, min=-4.6, max=-1.4)
+        log_std = self.log_std_head(shared)
+        log_std_clamped = torch.clamp(log_std, min=-7, max=0)
         std = torch.exp(log_std_clamped)
 
-        v_s= self.v_head(shared)
+        v_s = self.v_head(shared)
         
         return Normal(mu, std), v_s
 

@@ -53,12 +53,12 @@ class AntAgent():
     def update_batch_clock(self):
         self.batch_clock = (self.batch_clock + 1) % self.batch_size 
 
-    def update_weights(self, observation, action, reward, next_observation):
+    def update_weights(self, observation, action, reward, next_observation, done):
 
         dist, v_s = self.a2c(observation)
 
         v_next = self.a2c(next_observation)[1].detach()
-        target = reward + self.discount * v_next
+        target = reward + ~done*self.discount * v_next
 
         delta = (target - v_s).detach()
 
