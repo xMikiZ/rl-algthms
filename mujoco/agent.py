@@ -58,7 +58,7 @@ class AntAgent():
         dist, v_s = self.a2c(observation)
 
         v_next = self.a2c(next_observation)[1].detach()
-        target = reward + ~done*self.discount * v_next
+        target = reward + (1 - done)*self.discount * v_next
 
         delta = (target - v_s).detach()
 
