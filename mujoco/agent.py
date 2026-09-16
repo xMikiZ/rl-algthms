@@ -15,8 +15,7 @@ class AntAgent():
             num_observations,
             num_actions,
             env: gym.Env,
-            lr_actor,
-            lr_critic,
+            lr,
             discount,
             batch_size
             ):
@@ -27,13 +26,11 @@ class AntAgent():
         self.num_actions = num_actions
 
         self.env = env
-        self.lr_actor = lr_actor
-        self.lr_critic = lr_critic
+        self.lr = lr
 
         self.discount = discount
 
-        self.actor_optimizer = torch.optim.SGD(self.a2c.parameters(), lr_actor)
-        self.critic_optimizer = torch.optim.SGD(self.a2c.parameters(), lr_critic)
+        self.optimizer = torch.optim.Adam(self.a2c.parameters(), lr)
 
         self.batch_size = batch_size
         self.actor_batch = [0]*batch_size
@@ -43,7 +40,9 @@ class AntAgent():
     def get_action(self, observation):
 
         dist, _ = self.a2c(observation)
-        return torch.clamp(dist.sample(), -1, 1)
+        action = dist.sample()
+
+        return action
 
     def update_discount(self):
         self.cumulative_discount *= self.discount
@@ -58,9 +57,10 @@ class AntAgent():
 
         dist, v_s = self.a2c(observation)
 
-        delta = reward + self.discount * self.a2c(next_observation)[1] - v_s
-        delta = delta.detach()
+        v_next = self.a2c(next_observation)[1].detach()
+        target = reward + self.discount * v_next
 
+        delta = (target - v_s).detach()
 
         # actor loss
         log_prob = dist.log_prob(action).sum(dim=-1)
@@ -68,25 +68,22 @@ class AntAgent():
         self.actor_batch[self.batch_clock] = actor_loss
 
         # critic loss
-        critic_loss = -delta*v_s
+        critic_loss = 0.5*(target - v_s)**2
         self.critic_batch[self.batch_clock] = critic_loss
 
         if self.batch_clock == self.batch_size - 1:
 
             batch_actor_loss = torch.stack(self.actor_batch).mean()
-            self.actor_optimizer.zero_grad()
-            # batch_actor_loss.backward(retain_graph=True)
-
             batch_critic_loss = torch.stack(self.critic_batch).mean()
-            # self.critic_optimizer.zero_grad()
-            # batch_critic_loss.backward()
 
-            (batch_actor_loss + batch_critic_loss).backward()
+            self.optimizer.zero_grad()
+            loss = batch_actor_loss + batch_critic_loss 
+            loss.backward()
 
             # recomanació del gemini: sinó s'acumulen masses gradients i torna nan
-            torch.nn.utils.clip_grad_norm_(self.a2c.parameters(), max_norm=0.5)
+            # torch.nn.utils.clip_grad_norm_(self.a2c.parameters(), max_norm=0.5)
 
-            self.actor_optimizer.step()
+            self.optimizer.step()
             # self.critic_optimizer.step()
 
         self.update_batch_clock()

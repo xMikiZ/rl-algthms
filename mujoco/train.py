@@ -13,9 +13,9 @@ agent = AntAgent(
     num_observations = env.observation_space.shape[0],
     num_actions = env.action_space.shape[0],
     env = env,
-    lr_actor = 0.0001,
-    lr_critic = 0.0001,
+    lr = 0.0001,
     discount = 0.99,
+    batch_size = 128
 )
 
 
@@ -31,8 +31,9 @@ for episode in tqdm(range(num_episodes)):
     while not terminated and not truncated:
 
         action = agent.get_action(observation)
+        clamped_action = torch.clamp(action, -1, 1)
 
-        new_observation, reward, terminated, truncated, info = env.step(action.numpy())
+        new_observation, reward, terminated, truncated, info = env.step(clamped_action.numpy())
         new_observation = torch.from_numpy(new_observation).to(torch.float32)
 
         agent.update_weights(observation, action, reward, new_observation)
