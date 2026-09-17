@@ -26,8 +26,9 @@ agent = AntAgent(
     num_actions = env.action_space.shape[0],
     env = env,
     lr = 0.0001,
+    eps = 1,
     discount = 0.99,
-    batch_size = 128
+    batch_size = 512
 )
 
 
@@ -38,7 +39,7 @@ for episode in tqdm(range(num_episodes)):
 
     terminated, truncated = False, False
 
-    agent.restart_discount()
+    # agent.restart_discount()
 
     while not terminated and not truncated:
 
