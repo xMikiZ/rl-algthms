@@ -17,7 +17,9 @@ class AntAgent():
             env: gym.Env,
             lr_actor,
             lr_critic,
-            discount
+            discount,
+            beta,
+            beta_decay
             ):
 
         self.a2c = A2C(num_observations, num_actions)
@@ -25,6 +27,8 @@ class AntAgent():
         self.env = env
 
         self.discount = discount
+        self.beta = beta
+        self.beta_decay = beta_decay
 
         self.actor_optimizer = torch.optim.Adam(self.a2c.actor.parameters(), lr_actor)
         self.critic_optimizer = torch.optim.Adam(self.a2c.critic.parameters(), lr_critic)
@@ -34,7 +38,7 @@ class AntAgent():
         dist = self.a2c.actor(observation)
         action = dist.sample()
 
-        return torch.clamp(action, -1, 1)
+        return action
 
     def get_losses(self, observation, action, reward, next_observation, done):
         """Store experience as the loss"""
@@ -47,8 +51,10 @@ class AntAgent():
         critic_loss = 0.5 * (target.detach() - v_s).pow(2).mean() # aquest .detach() és redundant?
 
         advantage = (target - v_s).detach()
-        log_prob = self.a2c.actor(observation).log_prob(action).sum(dim=-1)
-        actor_loss = -(advantage*log_prob).mean()
+        dist = self.a2c.actor(observation)
+        log_prob = dist.log_prob(action).sum(dim=-1)
+        entropy = dist.entropy().mean()
+        actor_loss = -(advantage*log_prob).mean() - self.beta * entropy
 
         return actor_loss, critic_loss
 
@@ -63,5 +69,7 @@ class AntAgent():
         critic_loss.backward()
         self.critic_optimizer.step()
 
+    def update_beta(self):
+        self.beta = self.beta*self.beta_decay 
 
         

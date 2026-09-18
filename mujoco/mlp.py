@@ -23,7 +23,8 @@ class Actor(nn.Module):
             nn.Tanh(),
             nn.Linear(512, 512),
             nn.Tanh(),
-            nn.Linear(512, n_output)
+            nn.Linear(512, n_output),
+            nn.Tanh()
         )
 
         self.log_std = nn.Parameter(torch.zeros(n_output)) # donat que estem en un cas on tot té igual rang i efecte, volem poca var, ho acceptem
@@ -31,11 +32,12 @@ class Actor(nn.Module):
     def forward(self, observation):
 
         mu = self.mlp(observation)
-        mu_clamped = torch.clamp(mu, min=-1, max = 1)
-        log_std_clamped = torch.clamp(self.log_std, min=-7, max=1)
-        std_clamped = torch.exp(log_std_clamped)
+        # mu_clamped = torch.clamp(mu, min=-1, max = 1)
+        # log_std_clamped = torch.clamp(self.log_std, min=-7, max=1)
+        # std_clamped = torch.exp(log_std_clamped)
+        std = torch.exp(self.log_std)
 
-        return Normal(mu_clamped, std_clamped)
+        return Normal(mu, std)
 
 
 class Critic(nn.Module):

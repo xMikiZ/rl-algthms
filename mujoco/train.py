@@ -1,5 +1,6 @@
 import gymnasium as gym
 from gymnasium.wrappers import RecordEpisodeStatistics, RecordVideo, NormalizeObservation
+from gymnasium.wrappers.vector import ClipAction
 
 import torch
 from agent import AntAgent
@@ -8,13 +9,12 @@ import numpy as np
 
 num_episodes = 1000
 
-num_envs = 4
 # envs = gym.make_vec("Ant-v5", num_envs=4, render_mode = "rgb_array")
 
 def make_env(env_id, idx, capture_video=False, run_name="a2c_exp"):
   def thunk():
     # 1. Must specify rgb_array render mode
-    env = gym.make(env_id, render_mode="rgb_array")
+    env = gym.make(env_id, max_episode_steps=128, render_mode="rgb_array")
 
     # 2. Apply RecordVideo ONLY to the first sub-environment (idx == 0)
     if capture_video and idx == 0:
@@ -36,6 +36,7 @@ env_fns = [
 ]
 
 envs = gym.vector.SyncVectorEnv(env_fns)
+envs = ClipAction(envs)
 device = torch.device("cpu")
 
 
@@ -46,8 +47,10 @@ agent = AntAgent(
     num_actions = num_actions,
     env = envs,
     lr_actor = 0.0001,
-    lr_critic = 0.0001,
-    discount = 0.99
+    lr_critic = 0.0005,
+    discount = 0.995,
+    beta = 0.001,
+    beta_decay = 0.991
     )
 
 
@@ -104,6 +107,7 @@ for sample_phase in tqdm(range(n_updates)):
 
     # update the actor and critic networks
     agent.update_weights(actor_loss, critic_loss)
+    agent.update_beta()
 
     if sample_phase % 50 == 0:
         print(mean_reward[:-100].mean())
