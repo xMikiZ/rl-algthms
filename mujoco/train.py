@@ -103,7 +103,7 @@ for sample_phase in tqdm(range(n_updates)):
     )
 
     # update the actor and critic networks
-    agent.update_weights(critic_loss, actor_loss)
+    agent.update_weights(actor_loss, critic_loss)
 
     if sample_phase % 50 == 0:
         print(mean_reward[:-100].mean())

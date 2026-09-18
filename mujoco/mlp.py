@@ -33,9 +33,9 @@ class Actor(nn.Module):
         mu = self.mlp(observation)
         mu_clamped = torch.clamp(mu, min=-1, max = 1)
         log_std_clamped = torch.clamp(self.log_std, min=-7, max=1)
-        std = torch.exp(log_std_clamped)
+        std_clamped = torch.exp(log_std_clamped)
 
-        return Normal(mu, std)
+        return Normal(mu_clamped, std_clamped)
 
 
 class Critic(nn.Module):

@@ -44,7 +44,7 @@ class AntAgent():
             target = reward + (1 - done) * self.discount * v_next
 
         v_s = self.a2c.critic(observation).squeeze(-1)
-        critic_loss = 0.5 * (target - v_s).pow(2).mean()
+        critic_loss = 0.5 * (target.detach() - v_s).pow(2).mean() # aquest .detach() és redundant?
 
         advantage = (target - v_s).detach()
         log_prob = self.a2c.actor(observation).log_prob(action).sum(dim=-1)
