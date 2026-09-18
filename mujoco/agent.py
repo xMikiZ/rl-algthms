@@ -8,7 +8,7 @@ from mlp import Policy, ValueFunction
 
 
 
-class bbb():
+class AntAgent():
 
     def __init__(
             self,
@@ -98,21 +98,6 @@ class bbb():
 
             self.policy.load_state_dict(self.new_policy.state_dict())
 
-            log_probs = torch.stack(self.log_probs_batch).detach()
-            advantages = torch.stack(self.advantages_batch).detach()
-            observations = torch.stack(self.observatios_batch).detach()
-            actions = torch.stack(self.actions_batch).detach()
-
-
-            distributions = self.new_policy(observations)
-            new_log_probs = distributions.log_prob(actions).sum(dim=-1)
-
-            log_ratios = new_log_probs - log_probs
-            ratios = torch.exp(log_ratios)
-            
-            surr1 = ratios*advantages
-            surr2 = torch.clamp(ratios, 1 - self.eps, 1 + self.eps)*advantages
-
             #TODO: K epochs as a hyperparam to pass to agent
             #      also for minibatch
             K = 16
@@ -120,7 +105,24 @@ class bbb():
             for _ in range(K):
 
                 indicies = np.random.choice(self.batch_size, mini_batch, replace=False)
-                batch_actor_loss = -torch.min(surr1[indicies], surr2[indicies]).mean()
+
+                log_probs = torch.stack([self.log_probs_batch[i] for i in indicies]).detach()
+                advantages = torch.stack([self.advantages_batch[i] for i in indicies]).detach()
+                observations = torch.stack([self.observatios_batch[i] for i in indicies]).detach()
+                actions = torch.stack([self.actions_batch[i] for i in indicies]).detach()
+
+
+                distributions = self.new_policy(observations)
+                new_log_probs = distributions.log_prob(actions).sum(dim=-1)
+
+                log_ratios = new_log_probs - log_probs
+                ratios = torch.exp(log_ratios)
+                
+                surr1 = ratios*advantages
+                surr2 = torch.clamp(ratios, 1 - self.eps, 1 + self.eps)*advantages
+
+
+                batch_actor_loss = -torch.min(surr1, surr2).mean()
 
                 self.policy_optimizer.zero_grad()
                 batch_actor_loss.backward()
@@ -128,7 +130,7 @@ class bbb():
                 torch.nn.utils.clip_grad_norm_(self.new_policy.parameters(), max_norm=0.5)
                 self.policy_optimizer.step()
 
-                batch_critic_loss = torch.stack(self.critic_loss_batch[indicies]).mean()
+                batch_critic_loss = torch.stack([self.critic_loss_batch[i] for i in indicies]).mean()
                 self.value_function_optimizer.zero_grad()
                 batch_critic_loss.backward()
                 self.value_function_optimizer.step()
