@@ -15,80 +15,53 @@ class AntAgent():
             num_observations,
             num_actions,
             env: gym.Env,
-            lr,
-            discount,
-            batch_size
+            lr_actor,
+            lr_critic,
+            discount
             ):
 
         self.a2c = A2C(num_observations, num_actions)
 
-        self.num_observations = num_observations
-        self.num_actions = num_actions
-
         self.env = env
-        self.lr = lr
 
         self.discount = discount
 
-        self.optimizer = torch.optim.Adam(self.a2c.parameters(), lr)
-
-        self.batch_size = batch_size
-        self.actor_batch = [0]*batch_size
-        self.critic_batch = [0]*batch_size
-        self.batch_clock = 0
+        self.actor_optimizer = torch.optim.Adam(self.a2c.actor.parameters(), lr_actor)
+        self.critic_optimizer = torch.optim.Adam(self.a2c.critic.parameters(), lr_critic)
 
     def get_action(self, observation):
 
-        dist, _ = self.a2c(observation)
+        dist = self.a2c.actor(observation)
         action = dist.sample()
 
-        return action
+        return torch.clamp(action, -1, 1)
 
-    def update_discount(self):
-        self.cumulative_discount *= self.discount
+    def get_losses(self, observation, action, reward, next_observation, done):
+        """Store experience as the loss"""
 
-    def restart_discount(self):
-        self.cumulative_discount = 1
+        with torch.no_grad():
+            v_next = self.a2c.critic(next_observation).squeeze(-1)
+            target = reward + (1 - done) * self.discount * v_next
 
-    def update_batch_clock(self):
-        self.batch_clock = (self.batch_clock + 1) % self.batch_size 
+        v_s = self.a2c.critic(observation).squeeze(-1)
+        critic_loss = 0.5 * (target - v_s).pow(2).mean()
 
-    def update_weights(self, observation, action, reward, next_observation, done):
+        advantage = (target - v_s).detach()
+        log_prob = self.a2c.actor(observation).log_prob(action).sum(dim=-1)
+        actor_loss = -(advantage*log_prob).mean()
 
-        dist, v_s = self.a2c(observation)
+        return actor_loss, critic_loss
 
-        v_next = self.a2c(next_observation)[1].detach()
-        target = reward + (1 - done)*self.discount * v_next
+    def update_weights(self, actor_loss, critic_loss):
 
-        delta = (target - v_s).detach()
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
 
-        # actor loss
-        log_prob = dist.log_prob(action).sum(dim=-1)
-        actor_loss = -self.cumulative_discount*delta*log_prob
-        self.actor_batch[self.batch_clock] = actor_loss
-
-        # critic loss
-        critic_loss = 0.5*(target - v_s)**2
-        self.critic_batch[self.batch_clock] = critic_loss
-
-        if self.batch_clock == self.batch_size - 1:
-
-            batch_actor_loss = torch.stack(self.actor_batch).mean()
-            batch_critic_loss = torch.stack(self.critic_batch).mean()
-
-            self.optimizer.zero_grad()
-            loss = batch_actor_loss + 0.5*batch_critic_loss 
-            loss.backward()
-
-            # recomanació del gemini: sinó s'acumulen masses gradients i torna nan
-            torch.nn.utils.clip_grad_norm_(self.a2c.parameters(), max_norm=0.5)
-
-            self.optimizer.step()
-
-        self.update_batch_clock()
         
-                    
-
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        self.critic_optimizer.step()
 
 
         

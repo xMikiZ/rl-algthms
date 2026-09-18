@@ -4,72 +4,109 @@ from gymnasium.wrappers import RecordEpisodeStatistics, RecordVideo, NormalizeOb
 import torch
 from agent import AntAgent
 from tqdm import tqdm
-import logging
+import numpy as np
 
 num_episodes = 1000
 
-env = gym.make("Ant-v5", render_mode = "rgb_array")
-evn = NormalizeObservation(env)
-env = RecordVideo(
-    env,
-    video_folder="videos",
-    name_prefix="eval",
-    episode_trigger=lambda x: x % 50 == 0   # Record every 100 episodes
-)
-env = RecordEpisodeStatistics(env)
+num_envs = 4
+# envs = gym.make_vec("Ant-v5", num_envs=4, render_mode = "rgb_array")
+
+def make_env(env_id, idx, capture_video=False, run_name="a2c_exp"):
+  def thunk():
+    # 1. Must specify rgb_array render mode
+    env = gym.make(env_id, render_mode="rgb_array")
+
+    # 2. Apply RecordVideo ONLY to the first sub-environment (idx == 0)
+    if capture_video and idx == 0:
+      env = gym.wrappers.RecordVideo(
+          env,
+          video_folder=f"videos/{run_name}",
+          episode_trigger=lambda ep_id: ep_id % 50
+          == 0,  # Record every 100th episode on worker 0
+      )
+    return env
+
+  return thunk
 
 
+# Instantiate vectorized environments
+num_envs = 16
+env_fns = [
+    make_env("Ant-v5", idx=i, capture_video=True) for i in range(num_envs)
+]
+
+envs = gym.vector.SyncVectorEnv(env_fns)
+device = torch.device("cpu")
 
 
+num_observations = envs.single_observation_space.shape[0]
+num_actions = envs.single_action_space.shape[0]
 agent = AntAgent(
-    num_observations = env.observation_space.shape[0],
-    num_actions = env.action_space.shape[0],
-    env = env,
-    lr = 0.0001,
-    discount = 0.99,
-    batch_size = 128
-)
+    num_observations = num_observations,
+    num_actions = num_actions,
+    env = envs,
+    lr_actor = 0.0001,
+    lr_critic = 0.0001,
+    discount = 0.99
+    )
 
 
-for episode in tqdm(range(num_episodes)):
+n_updates = 1000
+n_steps_per_update = 128
 
-    observation, info = env.reset()
-    observation = torch.from_numpy(observation).to(torch.float32) # torch uses float32 as default, but this is float64
+mean_reward = np.zeros(100)
 
-    terminated, truncated = False, False
+for sample_phase in tqdm(range(n_updates)):
 
-    agent.restart_discount()
+    ep_observations = torch.zeros(n_steps_per_update, num_envs, num_observations, device=device)
+    ep_actions = torch.zeros(n_steps_per_update, num_envs, num_actions, device=device)
+    ep_rewards = torch.zeros(n_steps_per_update, num_envs, device=device)
+    ep_next_observations = torch.zeros(n_steps_per_update, num_envs, num_observations, device=device)
+    terminateds = torch.zeros(n_steps_per_update, num_envs, device=device)
 
-    while not terminated and not truncated:
+    # at the start of training reset all envs to get an initial state
+    if sample_phase == 0:
+        observations, info = envs.reset(seed=42)
+        observations = torch.Tensor(observations).to(device)
 
-        action = agent.get_action(observation)
-        clamped_action = torch.clamp(action, -1, 1)
+    # play n steps in our parallel environments to collect data
+    for step in range(n_steps_per_update):
 
-        new_observation, reward, terminated, truncated, info = env.step(clamped_action.numpy())
-        new_observation = torch.from_numpy(new_observation).to(torch.float32)
+        actions = agent.get_action(observations)
 
-        agent.update_weights(observation, action, reward, new_observation, terminated)
+        # perform the action A_{t} in the environment to get S_{t+1} and R_{t+1}
+        next_observations, rewards, terminated, truncated, infos = envs.step(
+            actions.cpu().numpy()
+        )
 
-        observation = new_observation
+        next_observations = torch.Tensor(next_observations).to(device)
+        rewards = torch.Tensor(rewards).to(device)
+        terminated = torch.Tensor(terminated).to(device)
 
-        # agent.update_discount()
+        ep_observations[step] = observations
+        ep_actions[step] = actions
+        ep_rewards[step] = rewards
+        ep_next_observations[step] = next_observations
 
-    if "episode" in info:
-        episode_data = info["episode"]
-        logging.info(f"Episode {episode}: "
-                    f"reward={episode_data['r']:.1f}, "
-                    f"length={episode_data['l']}, "
-                    f"time={episode_data['t']:.2f}s")
+        observations = next_observations
+        terminateds[step] = terminated
 
-        # Additional analysis for milestone episodes
-        if episode % 25 == 0:
-            # Look at recent performance (last 25 episodes)
-            recent_rewards = list(env.return_queue)[-25:]
-            if recent_rewards:
-                avg_recent = sum(recent_rewards) / len(recent_rewards)
-                print(f"  -> Average reward over last 25 episodes: {avg_recent:.1f}")
+        mean_reward = np.append(mean_reward, rewards.mean())
 
-env.close()
+    # calculate the losses for actor and critic
+    actor_loss, critic_loss = agent.get_losses(
+        ep_observations,
+        ep_actions,
+        ep_rewards,
+        ep_next_observations,
+        terminateds
+    )
 
-        
+    # update the actor and critic networks
+    agent.update_weights(critic_loss, actor_loss)
 
+    if sample_phase % 50 == 0:
+        print(mean_reward[:-100].mean())
+
+
+envs.close()
