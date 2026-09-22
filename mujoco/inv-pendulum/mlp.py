@@ -20,11 +20,11 @@ class Actor(nn.Module):
         super().__init__() 
 
         self.mlp = nn.Sequential(
-            nn.Linear(n_input, 16),
+            nn.Linear(n_input, 64),
             nn.Tanh(),
-            nn.Linear(16, 16),
+            nn.Linear(64, 64),
             nn.Tanh(),
-            nn.Linear(16, n_output),
+            nn.Linear(64, n_output),
             nn.Tanh()
         )
 
@@ -45,11 +45,11 @@ class Critic(nn.Module):
         super().__init__() 
 
         self.mlp = nn.Sequential(
-            nn.Linear(n_input, 16),
+            nn.Linear(n_input, 64),
             nn.ReLU(),
-            nn.Linear(16, 16),
+            nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(16, 1),
+            nn.Linear(64, 1),
         )
 
     def forward(self, observation):

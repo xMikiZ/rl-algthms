@@ -66,12 +66,11 @@ class InvPendulumAgent():
 
         # entropy = new_dist.entropy().mean()
         actor_loss = -torch.min(ratio * advantage, torch.clamp(ratio, 1 - self.eps, 1 + self.eps) * advantage).mean() # - self.beta * entropy
-
         return actor_loss, critic_loss
 
     def update_weights(self, actor_loss, critic_loss):
 
-        self.ppo.actor.load_state_dict(self.ppo.new_actor.state_dict())
+        # self.ppo.actor.load_state_dict(self.ppo.new_actor.state_dict())
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward()

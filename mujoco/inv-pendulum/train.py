@@ -18,7 +18,7 @@ def make_env(env_id, idx, capture_video=False):
       env = gym.wrappers.RecordVideo(
           env,
           video_folder=f"videos",
-          episode_trigger=lambda ep_id: ep_id % 100
+          episode_trigger=lambda ep_id: ep_id % 50
           == 0,  # Record every 100th episode on worker 0
       )
     return env
@@ -53,12 +53,12 @@ agent = InvPendulumAgent(
 
 
 n_updates = 200
-trajectory_size = 512
+trajectory_size = 128
 mini_batch_size = 16
-K = 4
+K = 8
 
 
-mean_reward = np.zeros(25)
+mean_reward = np.zeros(n_updates)
 
 for sample_phase in tqdm(range(n_updates)):
 
@@ -95,27 +95,40 @@ for sample_phase in tqdm(range(n_updates)):
         observations = next_observations
         terminateds[step] = terminated
 
-        mean_reward = np.append(mean_reward, rewards.mean())
+        mean_reward[sample_phase] += rewards.mean()
 
-    # TODO: K = epochcs for running through batch 
     for _ in range(K):
 
-        for i in range(0, trajectory_size, mini_batch_size):
+        unsq_observations = ep_observations.view(trajectory_size * num_envs, -1)
+        unsq_actions = ep_actions.view(trajectory_size * num_envs, -1)
+        unsq_rewards = ep_rewards.view(trajectory_size * num_envs, -1)
+        unsq_next_observations = ep_next_observations.view(trajectory_size * num_envs, -1)
+        unsq_terminateds = terminateds.view(trajectory_size * num_envs, -1)
+
+        indices = np.arange(trajectory_size * num_envs)
+        np.random.shuffle(indices)
+
+        for i in range(0, trajectory_size*num_envs, mini_batch_size):
             # calculate the losses for actor and critic
+
+            mb_idx = indices[i : i + mini_batch_size]
+
             actor_loss, critic_loss = agent.get_losses(
-                ep_observations[i : i + mini_batch_size],
-                ep_actions[i : i + mini_batch_size],
-                ep_rewards[i : i + mini_batch_size],
-                ep_next_observations[i : i + mini_batch_size],
-                terminateds[i : i + mini_batch_size]
+                unsq_observations[mb_idx],
+                unsq_actions[mb_idx],
+                unsq_rewards[mb_idx],
+                unsq_next_observations[mb_idx],
+                unsq_terminateds[mb_idx]
             )
 
             # update the actor and critic networks
             agent.update_weights(actor_loss, critic_loss)
             agent.update_beta()
 
+        agent.ppo.actor.load_state_dict(agent.ppo.new_actor.state_dict())
+
     if sample_phase % 25 == 0:
-        print(mean_reward[:-25].mean())
+        print(mean_reward[sample_phase])
 
 
 envs.close()
