@@ -8,7 +8,7 @@ from mlp import PPO
 
 
 
-class InvPendulumAgent():
+class AntAgent():
 
     def __init__(
             self,
@@ -102,15 +102,15 @@ class InvPendulumAgent():
         return actor_loss, critic_loss
 
     def update_weights(self, actor_loss, critic_loss):
-
-        # self.ppo.actor.load_state_dict(self.ppo.new_actor.state_dict())
-
+        
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
+        nn.utils.clip_grad_norm_(self.ppo.actor.parameters(), 0.5)
         self.actor_optimizer.step()
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
+        nn.utils.clip_grad_norm_(self.ppo.critic.parameters(), 0.5)
         self.critic_optimizer.step()
 
     def update_beta(self):

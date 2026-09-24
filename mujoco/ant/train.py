@@ -3,7 +3,7 @@ from gymnasium.wrappers import RecordEpisodeStatistics, RecordVideo, NormalizeOb
 from gymnasium.wrappers.vector import ClipAction
 
 import torch
-from agent import InvPendulumAgent
+from agent import AntAgent
 from tqdm import tqdm
 import numpy as np
 
@@ -11,8 +11,14 @@ import numpy as np
 def make_env(env_id, idx, capture_video=False):
   def thunk():
 
-    env = gym.make(env_id, render_mode="rgb_array")
+    if idx == 0:
+        env = gym.make(env_id, render_mode="rgb_array", include_cfrc_ext_in_observation=False)
+    else:
+        env = gym.make(env_id, include_cfrc_ext_in_observation=False)
+
     env = NormalizeObservation(env)
+    env = gym.wrappers.NormalizeReward(env, gamma=0.997)
+    env = RecordEpisodeStatistics(env)
 
     # Apply RecordVideo ONLY to the first sub-environment (idx == 0)
     if capture_video and idx == 0:
@@ -41,24 +47,25 @@ device = torch.device("cpu")
 
 num_observations = envs.single_observation_space.shape[0]
 num_actions = envs.single_action_space.shape[0]
-agent = InvPendulumAgent(
+agent = AntAgent(
     num_observations = num_observations,
     num_actions = num_actions,
     env = envs,
     lr_actor = 0.0001,
     lr_critic = 0.0005,
-    eps = 0.2,
+    eps = 0.1,
     lmd = 0.96,
     discount = 0.997,
     beta = 0,
     beta_decay = 1
     )
 
+# agent.ppo.load_state_dict(torch.load("begin_ppo_weights_600.pt"))
 
-n_updates = 2000
-trajectory_size = 1024
-mini_batch_size = 128    
-K = 8
+n_updates = 1000
+trajectory_size = 512
+mini_batch_size = 64    
+K = 4
 
 
 mean_reward = np.zeros(n_updates)
@@ -86,7 +93,6 @@ for sample_phase in tqdm(range(n_updates)):
         next_observations, rewards, terminated, truncated, infos = envs.step(
             actions.cpu().numpy()
         )
-
         next_observations = torch.Tensor(next_observations).to(device)
         rewards = torch.Tensor(rewards).to(device)
         terminated = torch.Tensor(terminated).to(device)
@@ -97,7 +103,6 @@ for sample_phase in tqdm(range(n_updates)):
         ep_rewards[step] = rewards
 
         for i in range(num_envs):
-
             if terminated[i] or truncated[i]: 
                 ep_next_observations[step][i] = torch.Tensor(infos["final_obs"][i]).to(device)
             else:
@@ -109,7 +114,6 @@ for sample_phase in tqdm(range(n_updates)):
         truncateds[step] = truncated
 
         mean_reward[sample_phase] += rewards.mean()
-
 
     with torch.no_grad():
         gaes, returns = agent.get_gaes(ep_observations, ep_actions, ep_rewards, ep_next_observations, terminateds, truncateds)
@@ -152,8 +156,8 @@ for sample_phase in tqdm(range(n_updates)):
             agent.update_weights(actor_loss, critic_loss)
             agent.update_beta()
 
-    if sample_phase % 25 == 0:
-        print(mean_reward[sample_phase])
+    if sample_phase % 5 == 0:
+        print(mean_reward[sample_phase] / trajectory_size)
 
     if sample_phase % 200 == 0:
        torch.save(agent.ppo.state_dict(), f"ppo_weights_{sample_phase}.pt")
