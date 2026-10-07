@@ -1,5 +1,5 @@
 import gymnasium as gym
-from gymnasium.wrappers import RecordEpisodeStatistics, RecordVideo, NormalizeObservation
+from gymnasium.wrappers import RecordEpisodeStatistics, RecordVideo
 from gymnasium.wrappers.vector import ClipAction
 
 import torch
@@ -18,9 +18,6 @@ def make_env(env_id, idx, capture_video=False, run_name="a2c_exp"):
         env = gym.make(env_id, render_mode="rgb_array", include_cfrc_ext_in_observation = False)
     else:
         env = gym.make(env_id, include_cfrc_ext_in_observation = False)
-
-    env = NormalizeObservation(env)
-    env = gym.wrappers.NormalizeReward(env, gamma=0.997)   
  
     # 2. Apply RecordVideo ONLY to the first sub-environment (idx == 0)
     if capture_video and idx == 0:
@@ -54,19 +51,21 @@ agent = AntAgent(
     env = envs,
     lr_actor = 0.0001,
     lr_critic = 0.0005,
-    discount = 0.997,
+    discount = 0.996,
     beta = 0,
-    beta_decay = 1
+    beta_decay = 1,
+    lmd = 0.97
     )
 
 
 n_updates = 1000
 trajectory_size = 512
 
-mean_reward = np.zeros(100)
+
 
 for sample_phase in tqdm(range(n_updates)):
-
+    mean_rewards = 0
+    
     ep_observations = torch.zeros(trajectory_size, num_envs, num_observations, device=device)
     ep_actions = torch.zeros(trajectory_size, num_envs, num_actions, device=device)
     ep_rewards = torch.zeros(trajectory_size, num_envs, device=device)
@@ -109,34 +108,38 @@ for sample_phase in tqdm(range(n_updates)):
         
         observations = next_observations
 
-        mean_reward = np.append(mean_reward, rewards.mean())
+        mean_rewards += rewards.mean()
 
-    K = 1
-    mini_batch_size = 64
-    for _ in range(K):
+    mini_batch_size = trajectory_size * num_envs
 
-        indices = np.arange(trajectory_size * num_envs)
-        np.random.shuffle(indices)
-        
-        for i in range(0, trajectory_size*num_envs, mini_batch_size):
+    indices = np.arange(trajectory_size * num_envs)
+    np.random.shuffle(indices)
 
-            mb_idx = indices[i : i + mini_batch_size]
+    with torch.no_grad():
+        gaes, returns = agent.get_gaes(ep_observations, ep_actions, ep_rewards, ep_next_observations, terminateds, truncateds)
+    
+    for i in range(0, trajectory_size*num_envs, mini_batch_size):
 
-            actor_loss, critic_loss = agent.get_losses(
-                ep_observations.view(trajectory_size * num_envs, -1)[mb_idx],
-                ep_actions.view(trajectory_size * num_envs, -1)[mb_idx],
-                ep_rewards.view(trajectory_size * num_envs)[mb_idx],
-                ep_next_observations.view(trajectory_size * num_envs, -1)[mb_idx],
-                terminateds.view(trajectory_size * num_envs)[mb_idx]
-            )
+        mb_idx = indices[i : i + mini_batch_size]
 
-            # update the actor and critic networks
-            agent.update_weights(actor_loss, critic_loss)
+        actor_loss, critic_loss = agent.get_losses(
+            ep_observations.view(trajectory_size * num_envs, -1)[mb_idx],
+            ep_actions.view(trajectory_size * num_envs, -1)[mb_idx],
+            ep_rewards.view(trajectory_size * num_envs)[mb_idx],
+            ep_next_observations.view(trajectory_size * num_envs, -1)[mb_idx],
+            terminateds.view(trajectory_size * num_envs)[mb_idx],
+            gaes.view(trajectory_size * num_envs)[mb_idx],
+            returns.view(trajectory_size * num_envs)[mb_idx]
+        )
+
+        # update the actor and critic networks
+        agent.update_weights(actor_loss, critic_loss)
+
     agent.update_beta()
 
 
-    if sample_phase % 50 == 0:
-        print(mean_reward[:-100].sum())
+    if sample_phase % 5 == 0:
+        print(mean_rewards / trajectory_size)
 
 
 envs.close()
