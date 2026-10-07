@@ -36,7 +36,7 @@ def make_env(env_id, idx, capture_video=False, run_name="a2c_exp"):
 
 
 # Instantiate vectorized environments
-num_envs = 8
+num_envs = 16
 env_fns = [
     make_env("Ant-v5", idx=i, capture_video=True) for i in range(num_envs)
 ]
@@ -55,13 +55,13 @@ agent = AntAgent(
     lr_actor = 0.0001,
     lr_critic = 0.0005,
     discount = 0.997,
-    beta = 0.001,
-    beta_decay = 0.991
+    beta = 0,
+    beta_decay = 1
     )
 
 
 n_updates = 1000
-trajectory_size = 1024
+trajectory_size = 512
 
 mean_reward = np.zeros(100)
 
@@ -111,17 +111,8 @@ for sample_phase in tqdm(range(n_updates)):
 
         mean_reward = np.append(mean_reward, rewards.mean())
 
-    # print(
-    #     ep_observations.shape,
-    #     ep_actions.shape,
-    #     ep_rewards.shape,
-    #     ep_next_observations.shape,
-    #     terminateds.shape,
-    #     truncateds.shape,
-    # )
-
     K = 1
-    mini_batch_size = 128
+    mini_batch_size = 64
     for _ in range(K):
 
         indices = np.arange(trajectory_size * num_envs)
@@ -131,9 +122,6 @@ for sample_phase in tqdm(range(n_updates)):
 
             mb_idx = indices[i : i + mini_batch_size]
 
-            # ep, get_losses funciona per batches, aquí estàs passant només vectors...!
-            # print(ep_observations.view(trajectory_size * num_envs, -1), ep_actions.view(trajectory_size * num_envs, -1))
-            # calculate the losses for actor and critic
             actor_loss, critic_loss = agent.get_losses(
                 ep_observations.view(trajectory_size * num_envs, -1)[mb_idx],
                 ep_actions.view(trajectory_size * num_envs, -1)[mb_idx],
@@ -144,11 +132,11 @@ for sample_phase in tqdm(range(n_updates)):
 
             # update the actor and critic networks
             agent.update_weights(actor_loss, critic_loss)
-            agent.update_beta()
+    agent.update_beta()
 
 
     if sample_phase % 50 == 0:
-        print(mean_reward[:-100].mean())
+        print(mean_reward[:-100].sum())
 
 
 envs.close()
