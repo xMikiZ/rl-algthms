@@ -19,12 +19,11 @@ class Actor(nn.Module):
         super().__init__() 
 
         self.mlp = nn.Sequential(
-            nn.Linear(n_input, 512),
+            nn.Linear(n_input, 256),
             nn.Tanh(),
-            nn.Linear(512, 512),
-            nn.Tanh(),
-            nn.Linear(512, n_output),
-            nn.Tanh()
+            nn.Linear(256, 256),
+            nn.Tanh(), 
+            nn.Linear(256, n_output)
         )
 
         self.log_std = nn.Parameter(torch.zeros(n_output)) # donat que estem en un cas on tot té igual rang i efecte, volem poca var, ho acceptem
@@ -47,11 +46,11 @@ class Critic(nn.Module):
         super().__init__() 
 
         self.mlp = nn.Sequential(
-            nn.Linear(n_input, 512),
+            nn.Linear(n_input, 256),
             nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(512, 1),
+            nn.Linear(256, 1),
         )
 
     def forward(self, observation):

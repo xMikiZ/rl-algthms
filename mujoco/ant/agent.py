@@ -46,13 +46,14 @@ class AntAgent():
         with torch.no_grad():
             v_next = self.a2c.critic(next_observation).squeeze(-1)
             target = reward + (1 - done) * self.discount * v_next
-
+        
         v_s = self.a2c.critic(observation).squeeze(-1)
         critic_loss = 0.5 * (target.detach() - v_s).pow(2).mean() # aquest .detach() és redundant?
 
         advantage = (target - v_s).detach()
         dist = self.a2c.actor(observation)
         log_prob = dist.log_prob(action).sum(dim=-1)
+
         entropy = dist.entropy().mean()
         actor_loss = -(advantage*log_prob).mean() - self.beta * entropy
 
@@ -64,7 +65,6 @@ class AntAgent():
         actor_loss.backward()
         self.actor_optimizer.step()
 
-        
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
